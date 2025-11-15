@@ -1,0 +1,54 @@
+---
+- name: Initialize K8S Master Node on AWS ubuntu
+  hosts: master
+  become: yes
+
+  vars:
+    local_kubeadmin_config: "./kubeadm-conf.j2"
+    remote_kubeadmin_config: "/home/{{ ansible_user }}/kubeadm-conf.yaml"
+
+  tasks:
+    - name: Copy kubeadmin-config.yaml to the master node
+      template:
+        src: "{{ local_kubeadmin_config }}"
+        dest: "{{ remote_kubeadmin_config }}"
+        owner: "{{ ansible_user }}"
+        mode: '0644'
+
+    - name: Ensure kubelet is enabled & started
+      systemd:
+        name: kubelet
+        enabled: yes
+        state: started
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: Initialize k8s cluster
+      command: kubeadm init --config {{ remote_kubeadmin_config }} --ignore-preflight-errors=NumCPU,Mem
+      args:
+        creates: /etc/kubernetes/admin.conf
+      register: kubeadm_init
+      changed_when: kubeadm_init.rc == 0
+
+    - name: Create .kube directory
+      file:
+        path: /home/{{ ansible_user }}/.kube
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+
+    - name: Copy admin.conf to user's kube config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/{{ ansible_user }}/.kube/config
+        remote_src: yes
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0644'
+
+    - name: Install Flannel cni
+      command: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+      become_user: "{{ ansible_ssh_user }}"
+    
+    - name: pause for 60 seconds to let the master node stabilize
+      ansible.builtin.pause:
+        seconds: 60

@@ -1,0 +1,3 @@
+.aws/*
+inventory.ini
+*.pem

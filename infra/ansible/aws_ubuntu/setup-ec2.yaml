@@ -1,0 +1,147 @@
+---
+### AWS K8S Master Installation
+- name: Setting up EC2 instances dependencies on aws ubuntu
+  hosts: all
+  become: yes
+
+  vars:
+    link: "https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.18/cri-dockerd_0.3.18.3-0.ubuntu-jammy_amd64.deb"
+
+  tasks:
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Remove old versions
+      apt:
+        name:
+          - docker
+          - docker-client
+          - docker-client-latest
+          - docker-common
+          - docker-latest
+          - docker-latest-logrotate
+          - docker-logrotate
+          - docker-engine
+          - podman
+          - runc
+          - kubelet
+          - kubeadm
+          - kubectl
+          - kubernetes-cni
+          - cri-tools
+          - cri-dockerd
+        state: absent
+        allow_change_held_packages: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Create directory for apt keyrings
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Add Docker's official GPG key
+      command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+    
+    - name: Add Docker apt repository
+      command: >
+        sh -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list'
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+    - name: Install Docker packages
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: download cri-dockerd
+      get_url:
+        url: "{{ link }}"
+        dest: /tmp/cri-dockerd.deb
+        force: yes
+
+    - name: Install cri-dockerd
+      apt:
+        deb: /tmp/cri-dockerd.deb
+        state: present
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: download k8s GPG key
+      get_url:
+        url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+        dest: /tmp/kubernetes-apt-keyring.gpg
+
+    - name: Check if file already exists
+      stat:
+        path: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      register: file_status
+
+    - name: Save K8s GPG key if not already present
+      command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/kubernetes-apt-keyring.gpg
+      when: not file_status.stat.exists
+    
+    - name: Add K8s apt repository to APT sources
+      copy:
+        content: |
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.30/deb/ /
+        dest: /etc/apt/sources.list.d/kubernetes.list
+        mode: '0644'
+    
+    - name: Update APT package index for k8s
+      apt:
+        update_cache: yes
+
+    - name: Install K8s pkgs
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: Hold K8s pkgs at current version
+      command: apt-mark hold kubelet kubeadm kubectl
+      ignore_errors: "{{ ansible_check_mode }}"
+
+    - name: disable swap
+      command: swapoff -a
+
+    - name: Comment out swap mounts in fstab
+      command: sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+    - name: Load overlay kernel module
+      command: modprobe overlay
+
+    - name: Load br_netfilter kernel module
+      command: modprobe br_netfilter
+
+    - name: Configure sysctl for kubernetes
+      copy:
+        content: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+        dest: /etc/sysctl.d/k8s.conf
+        mode: '0644'
+
+    - name: Apply sysctl params without reboot
+      command: sysctl --system
+
