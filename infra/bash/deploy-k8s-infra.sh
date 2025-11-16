@@ -45,3 +45,8 @@ aws ec2 run-instances \
     --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=12}" \
     --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=K8s-Worker}]'
 
+aws ec2 create-volume \
+  --availability-zone us-east-1f \
+  --size 10 \
+  --volume-type gp3 \
+  --tag-specifications 'ResourceType=volume,Tags=[{Key=Name,Value=mysql-data}]'
