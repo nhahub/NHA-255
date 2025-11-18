@@ -1,34 +1,70 @@
-output "vpc_id" {
-  description = "ID of the VPC"
-  value       = aws_vpc.k8s_vpc.id
+# outputs.tf (root)
+output "bastion_public_ip" {
+  description = "Public IP of bastion host"
+  value       = module.compute.bastion_public_ip
 }
 
 output "master_private_ip" {
-  description = "Private IP of the K8s master node for Ansible"
-  value       = aws_instance.k8s_master.private_ip
+  description = "Private IP of master node"
+  value       = module.compute.master_private_ip
 }
 
 output "worker_private_ips" {
-  description = "Private IPs of the K8s worker nodes for Ansible"
-  value       = aws_instance.k8s_workers[*].private_ip
+  description = "Private IPs of worker nodes"
+  value       = module.compute.worker_private_ips
 }
 
-output "bastion_public_ip" {
-  description = "Public IP of the bastion host for SSH access"
-  value       = aws_instance.bastion.public_ip
+output "vpc_id" {
+  description = "VPC ID"
+  value       = module.vpc.vpc_id
 }
 
-output "private_subnet_id" {
-  description = "ID of the private subnet"
-  value       = aws_subnet.private_subnet.id
-}
-
-output "public_subnet_id" {
-  description = "ID of the public subnet"
-  value       = aws_subnet.public_subnet.id
+output "private_key_path" {
+  description = "Path to private key file"
+  value       = local_file.private_key.filename
+  sensitive   = true
 }
 
 output "security_group_id" {
-  description = "ID of the K8s security group"
-  value       = aws_security_group.k8s_sg.id
+  description = "Security group ID"
+  value       = module.security.security_group_id
+}
+
+output "ecr_repository_url" {
+  description = "URL of the ECR repository"
+  value       = module.ecr.repository_url
+}
+
+output "ecr_repository_name" {
+  description = "Name of the ECR repository"
+  value       = module.ecr.repository_name
+}
+
+output "ecr_registry_id" {
+  description = "Registry ID for ECR"
+  value       = module.ecr.registry_id
+}
+
+
+output "database_secret_arn" {
+  description = "ARN of the database credentials secret"
+  value       = module.secrets.database_secret_arn
+  sensitive   = true
+}
+
+output "api_keys_secret_arn" {
+  description = "ARN of the API keys secret"
+  value       = module.secrets.api_keys_secret_arn
+  sensitive   = true
+}
+
+output "app_config_secret_arn" {
+  description = "ARN of the application configuration secret"
+  value       = module.secrets.app_config_secret_arn
+  sensitive   = true
+}
+
+output "secrets_management_policy_arn" {
+  description = "ARN of the secrets management IAM policy"
+  value       = module.secrets.secrets_management_policy_arn
 }

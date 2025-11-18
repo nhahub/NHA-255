@@ -1,89 +1,19 @@
-# variables.tf (root)
-variable "aws_region" {
-  description = "AWS region"
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "vpc_cidr" {
-  description = "CIDR block for VPC"
-  type        = string
-  default     = "10.0.0.0/16"
-}
-
-variable "public_subnet_cidr" {
-  description = "CIDR block for public subnet"
-  type        = string
-  default     = "10.0.1.0/24"
-}
-
-variable "private_subnet_cidr" {
-  description = "CIDR block for private subnet"
-  type        = string
-  default     = "10.0.2.0/24"
-}
-
-variable "availability_zone" {
-  description = "Availability zone"
-  type        = string
-  default     = "us-east-1a"
-}
-
-variable "ami_id" {
-  description = "AMI ID for instances"
-  type        = string
-  default     = "ami-0c398cb65a93047f2" # Ubuntu 22.04 LTS
-}
-
-variable "master_instance_type" {
-  description = "Instance type for master node"
-  type        = string
-  default     = "t3.medium"
-}
-
-variable "worker_instance_type" {
-  description = "Instance type for worker nodes"
-  type        = string
-  default     = "t3.medium"
-}
-
-variable "bastion_instance_type" {
-  description = "Instance type for bastion host"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "worker_count" {
-  description = "Number of worker nodes"
-  type        = number
-  default     = 2
-}
-
-
-variable "ecr_repository_name" {
-  description = "Name for the ECR repository"
-  type        = string
-  default     = "k8s-app-repository"
-}
-
-variable "ecr_access_principals" {
-  description = "List of IAM principals that can push to ECR"
-  type        = list(string)
-  default     = []
-}
-
-variable "ecr_keep_last_images" {
-  description = "Number of images to keep in ECR"
-  type        = number
-  default     = 30
-}
-
-
 # Basic Configuration
 variable "environment" {
-  description = "Environment name"
+  description = "Environment name (dev, staging, production)"
   type        = string
   default     = "production"
+}
+
+variable "recovery_window_in_days" {
+  description = "Number of days that secrets can be recovered after deletion"
+  type        = number
+  default     = 7
+}
+
+variable "k8s_nodes_role_name" {
+  description = "IAM role name used by K8s nodes"
+  type        = string
 }
 
 variable "secrets_management_principals" {
@@ -92,7 +22,19 @@ variable "secrets_management_principals" {
   default     = []
 }
 
+variable "tags" {
+  description = "Additional tags for secrets"
+  type        = map(string)
+  default     = {}
+}
+
 # Database Secret Variables
+variable "database_secret_name" {
+  description = "Name for the database credentials secret"
+  type        = string
+  default     = "k8s/database/credentials"
+}
+
 variable "database_username" {
   description = "Database username"
   type        = string
@@ -126,6 +68,12 @@ variable "database_name" {
 }
 
 # API Keys Secret Variables
+variable "api_keys_secret_name" {
+  description = "Name for the API keys secret"
+  type        = string
+  default     = "k8s/api/keys"
+}
+
 variable "stripe_secret_key" {
   description = "Stripe secret key"
   type        = string
@@ -155,6 +103,12 @@ variable "aws_secret_access_key" {
 }
 
 # App Config Secret Variables
+variable "app_config_secret_name" {
+  description = "Name for the application configuration secret"
+  type        = string
+  default     = "k8s/app/config"
+}
+
 variable "jwt_secret" {
   description = "JWT secret key"
   type        = string
