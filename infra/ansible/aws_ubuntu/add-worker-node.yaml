@@ -12,10 +12,10 @@
   become: yes
   tasks:
     - name: Execute join command
-      command: "{{ hostvars[groups['master'][0]].join_command.stdout }} --cri-socket /var/run/cri-dockerd.sock  --ignore-preflight-errors=NumCPU,Mem"
+      command: "{{ hostvars[groups['masters'][0]].join_command.stdout }} --cri-socket unix:///var/run/cri-dockerd.sock  --ignore-preflight-errors=NumCPU,Mem"
     
     - name: Label node
       command: kubectl label node {{ ansible_hostname }} node-role.kubernetes.io/worker=worker
-      delegate_to: master1
+      delegate_to: "{{ groups['masters'][0] }}"
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf

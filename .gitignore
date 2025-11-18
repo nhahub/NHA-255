@@ -1,3 +1,5 @@
 .aws/*
 inventory.ini
 *.pem
+*.pub
+.vscode/
