@@ -58,10 +58,10 @@ spec:
         - containerPort: 3306
           name: mysql
         volumeMounts:
-        - name: mysql-pv-claim
+        - name: mysql-ebs-vol
           mountPath: /var/lib/mysql
       volumes:
-        - name: mysql-pv-claim
+        - name: mysql-ebs-vol
           persistentVolumeClaim:
-            claimName: mysql-data-pvc
+            claimName: ebs-pvc
 
