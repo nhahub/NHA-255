@@ -3,7 +3,7 @@
 *.pub
 .vscode/
 .terraform/*
-terraform/.terraform/
-terraform/terraform.tfstate
-terraform/terraform.tfstate.backup
+./terraform/.terraform/
+./terraform/terraform.tfstate
+./terraform/terraform.tfstate.backup
 .terraform.lock.hcl
