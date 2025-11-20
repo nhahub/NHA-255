@@ -14,4 +14,4 @@ networking:
   podSubnet: "10.244.0.0/16"  # This is the Pod CIDR for Flannel
   serviceSubnet: "10.96.0.0/12"
 kubernetesVersion: "v1.30.0"
-controlPlaneEndpoint: "{{ ansible_all_ipv4_addresses[1] }}:6443"  # Control plane endpoint (host IP)
+controlPlaneEndpoint: "{{ ansible_default_ipv4.address }}:6443"  # Control plane endpoint (host IP)
