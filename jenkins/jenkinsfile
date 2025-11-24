@@ -1,108 +1,114 @@
 pipeline {
     agent {
         kubernetes {
-            yaml """
+            yaml '''
                 apiVersion: v1
                 kind: Pod
                 metadata:
-                labels:
-                    jenkins/label: kube-agent
+                    name: jenkins-agent-pod
+                    labels:
+                        app: jenkins-agent
                 spec:
                     containers:
-                        - name: git
-                          image: mcp/git:latest
-                          command: ["cat"]
-                          tty: true
-                          volumeMounts:
-                            - name: workspace-volume
-                              mountPath: /home/jenkins/agent
-                        - name: terraform
-                          image: mcp/aws-terraform
-                          command: ["cat"]
-                          tty: true
-                          volumeMounts:
-                            - name: workspace-volume
-                              mountPath: /home/jenkins/agent
-                        - name: jnlp
-                          image: jenkins/inbound-agent:latest
-                          volumeMounts:
-                            - name: workspace-volume
-                              mountPath: /home/jenkins/agent
-                    volumes:
-                        - name: workspace-volume
-                          emptyDir: {}
+                        -   name: git
+                            image: alpine/git:latest
+                            command:
+                                - sleep
+                            args:
+                                - 99d
+                            tty: true
 
-            """
+                        -   name: kaniko
+                            image: gcr.io/kaniko-project/executor:debug
+                            command:
+                                - /busybox/sleep
+                            args:
+                                - 99999
+                            tty: true
+
+                        -   name: mailer
+                            image: alpine:latest
+                            command:
+                                - sleep
+                            args:
+                                - 99d
+                            tty: true
+            '''
         }
     }
-
     environment {
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
-        AWS_DEFAULT_REGION = 'es-east-1'
+        GIT_REPO = 'https://github.com/nhahub/NHA-255.git'
+        GIT_BRANCH = 'main'
+        DOCKER_IMAGE = 'mohamedelsayed22/petclinic-depi'
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
+        K8S_NAMESPACE = 'default'
     }
-
     stages {
-        stage('Checkout code') {
+        stage('Checkout') {
             steps {
                 container('git') {
                     git branch: 'main', url: 'https://github.com/nhahub/NHA-255.git'
                 }
             }
         }
-
-        stage('Initialize Terraform') {
+        stage('Build docker image and push to docker hub') {
             steps {
-                container('terraform') {
-                    dir('terraform') {
-                        sh 'terraform init'
+                withCredentials([usernamePassword(
+                            credentialsId: 'dockerhub',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        )]) {
+                            container('kaniko') {
+                        sh """
+                        cat > /kaniko/.docker/config.json <<EOF
+                        {
+                            "auths": {
+                                        "https://index.docker.io/v1/": {
+                                            "auth": "\$(echo -n $DOCKER_USER:$DOCKER_PASS | base64 | tr '\n')"
+                                        }
+                            }
+                        }
+                        EOF
+                        /kaniko/executor \
+                            --context `pwd`/java-app \
+                            --dockerfile `pwd`/java-app/Dockerfile \
+                            --destination $DOCKER_IMAGE:$DOCKER_TAG \
+                            --destination $DOCKER_IMAGE:latest \
+                            --cache=true \
+                            --verbosity=info \
+                            --snapshot-mode=redo
+                    """
+                            }
+                        }
+            }
+        }
+
+        stage('Send Email') {
+            steps {
+                container('mailer') {
+                    withCredentials([usernamePassword(credentialsId: 'gmail', usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+                        sh """
+                    apk add --no-cache curl ca-certificates
+
+                    FROM="mohamedelsayedhussein22@gmail.com"
+                    TO="mohamedelsayedhussein22@gmail.com"
+                    SUBJECT="Jenkins Build #\\$BUILD_NUMBER - PetClinic Docker Image"
+                    BODY="Jenkins Pipeline Execution Summary\\\\n\\\\nJob Name: \\$JOB_NAME\\\\nBuild Number: \\$BUILD_NUMBER\\\\nBuild URL: \\$BUILD_URL\\\\nStatus: SUCCESS\\\\n\\\\nDocker Images Built:\\\\n- $DOCKER_IMAGE:\\$BUILD_NUMBER\\\\n- $DOCKER_IMAGE:latest\\\\n\\\\nGit Repository: $GIT_REPO\\\\nGit Branch: $GIT_BRANCH\\\\n\\\\nNamespace: $K8S_NAMESPACE"
+
+                    echo "Sending email..."
+                    echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n\$BODY" > /tmp/email.txt
+
+                    curl --url "smtps://smtp.gmail.com:465" \
+                         --ssl-reqd \
+                         --mail-from "\$FROM" \
+                         --mail-rcpt "\$TO" \
+                         --upload-file /tmp/email.txt \
+                         --user "\$GMAIL_USER:\$GMAIL_PASS" \
+                         --verbose
+                """
                     }
                 }
             }
         }
-
-        stage('Terraform Apply'){
-            steps {
-                container('terraform'){
-                    dir('terraform'){
-                        sh '''
-                            terraform apply -auto-approve 
-                        '''
-                    }
-                }
-            }
-        }        
-        //    stage('Terraform Destroy'){
-        //     steps {
-        //         container('terraform'){
-        //             dir('terraform'){
-        //                 sh 'terraform destroy -auto-approve '
-        //             }
-        //         }
-        //     }
-        // }        
     }
-
-post {
-    always {
-        cleanWs()
-    }
-
-    success {
-        emailext(
-            to: 'mohamedelsayedhussein22@gmail.com',
-            subject: 'Build Success',
-            body: 'Build Success'
-        )
-    }
-
-    failure {
-        emailext(
-            to: 'mohamedelsayedhussein22@gmail.com',
-            subject: 'Build Failure',
-            body: 'Build Failure'
-        )
-    }
-}
-
 }
