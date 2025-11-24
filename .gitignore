@@ -1,3 +1,7 @@
+.gitignore
 *.pem
 *.pub
 .vscode/
+
+
+.terraform/*

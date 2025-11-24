@@ -1,0 +1,108 @@
+pipeline {
+    agent {
+        kubernetes {
+            yaml """
+                apiVersion: v1
+                kind: Pod
+                metadata:
+                labels:
+                    jenkins/label: kube-agent
+                spec:
+                    containers:
+                        - name: git
+                          image: mcp/git:latest
+                          command: ["cat"]
+                          tty: true
+                          volumeMounts:
+                            - name: workspace-volume
+                              mountPath: /home/jenkins/agent
+                        - name: terraform
+                          image: mcp/aws-terraform
+                          command: ["cat"]
+                          tty: true
+                          volumeMounts:
+                            - name: workspace-volume
+                              mountPath: /home/jenkins/agent
+                        - name: jnlp
+                          image: jenkins/inbound-agent:latest
+                          volumeMounts:
+                            - name: workspace-volume
+                              mountPath: /home/jenkins/agent
+                    volumes:
+                        - name: workspace-volume
+                          emptyDir: {}
+
+            """
+        }
+    }
+
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        AWS_DEFAULT_REGION = 'es-east-1'
+    }
+
+    stages {
+        stage('Checkout code') {
+            steps {
+                container('git') {
+                    git branch: 'main', url: 'https://github.com/nhahub/NHA-255.git'
+                }
+            }
+        }
+
+        stage('Initialize Terraform') {
+            steps {
+                container('terraform') {
+                    dir('terraform') {
+                        sh 'terraform init'
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Apply'){
+            steps {
+                container('terraform'){
+                    dir('terraform'){
+                        sh '''
+                            terraform apply -auto-approve 
+                        '''
+                    }
+                }
+            }
+        }        
+        //    stage('Terraform Destroy'){
+        //     steps {
+        //         container('terraform'){
+        //             dir('terraform'){
+        //                 sh 'terraform destroy -auto-approve '
+        //             }
+        //         }
+        //     }
+        // }        
+    }
+
+post {
+    always {
+        cleanWs()
+    }
+
+    success {
+        emailext(
+            to: 'mohamedelsayedhussein22@gmail.com',
+            subject: 'Build Success',
+            body: 'Build Success'
+        )
+    }
+
+    failure {
+        emailext(
+            to: 'mohamedelsayedhussein22@gmail.com',
+            subject: 'Build Failure',
+            body: 'Build Failure'
+        )
+    }
+}
+
+}
