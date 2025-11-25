@@ -37,7 +37,7 @@ scp -i k8s-key.pem k8s-key.pem ubuntu@$BASTION_IP:~/aws_ubuntu/
 ssh -i k8s-key.pem ubuntu@$BASTION_IP << 'ENDSSH'
 sudo apt-get update && sudo apt-get install -y python3-pip
 pip3 install ansible-core>=2.12
-pip3 install ansible 
+pip3 install ansible
 cd ~/aws_ubuntu
 # Extract IPs from inventory and add to known_hosts
 grep ansible_host inventory.ini | awk '{print $2}' | cut -d= -f2 | while read ip; do
@@ -49,4 +49,13 @@ ENDSSH
 echo "Ansible bastion setup complete. Connect using: ssh -i k8s-key.pem ubuntu@$BASTION_IP"
 
 
-echo "Ansible installed on bastion."
+echo "=======Ansible installed on bastion========"
+
+echo "running ansible playbook to build k8s cluster & deploy app from bastion ..."
+ssh -i k8s-key.pem ubuntu@$BASTION_IP << 'ENDSSHPLAYBOOK'
+cd ~/aws_ubuntu
+ansible-playbook -i inventory.ini main.yaml
+ansible-playbook -i inventory.ini deploy-app.yaml
+ENDSSHPLAYBOOK
+
+echo "Finished deploying k8s cluster and app via Ansible from bastion."
