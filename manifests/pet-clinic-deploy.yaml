@@ -21,7 +21,7 @@ spec:
             - name: SERVER_PORT
               value: "8080"
         - name: pet-clinic-web
-          image: jsgiraldoh/spring-petclinic-docker
+          image: mohamedelsayed22/petclinic-depi:v1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
