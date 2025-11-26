@@ -8,9 +8,11 @@ spec:
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  awsElasticBlockStore:
-    volumeID: vol-002b5f92b18fe9464
-    fsType: ext4
+  hostPath:
+    path: /mnt/data
+  # awsElasticBlockStore:
+  #   volumeID: vol-002b5f92b18fe9464
+  #   fsType: ext4
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
