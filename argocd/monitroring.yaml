@@ -1,24 +1,22 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Application 
-metadata: 
-  name: petcline
+kind: Application
+metadata:
+  name: monitoring
   namespace: argocd
-spec: 
-  project: default 
-  source: 
-	charts: kube-prometheus-stack
-    repoURL: 'https://prometheus-community.github.io/helm-charts'
+spec:
+  project: default
+  source:
+    chart: kube-prometheus-stack
+    repoURL: "https://prometheus-community.github.io/helm-charts"
     targetRevision: 79.8.2
     helm:
-      releaseName: prom-grafana 
-
-  destination: 
-    server: 'https://kubernetes.default.svc'
-    namespace: Monitoring
-  
-  syncPolicy: 
+      releaseName: prom-grafana
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: monitoring
+  syncPolicy:
     automated:
       selfHeal: true
-      prune: true 
+      prune: true
     syncOptions:
-	  - CreateNamespace=true # This option enables auto-creation of the namespace
+      - CreateNamespace=true
