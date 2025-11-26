@@ -11,6 +11,11 @@ spec:
     targetRevision: 79.8.2
     helm:
       releaseName: prom-grafana
+      values: |
+        grafana:
+          service:
+            type: NodePort
+            nodePort: 32042
   destination:
     server: "https://kubernetes.default.svc"
     namespace: monitoring
