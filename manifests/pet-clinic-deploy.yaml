@@ -15,19 +15,19 @@ spec:
         app: pet-clinic-web
     spec:
       containers:
-        - env:
+        - name: pet-clinic-web
+          image: mohamedelsayed22/petclinic-depi:v1
+          env:
             - name: MYSQL_URL
               value: jdbc:mysql://mysql/petclinic
             - name: SERVER_PORT
               value: "8080"
-        - name: pet-clinic-web
-          image: mohamedelsayed22/petclinic-depi:v1
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
-              hostPort: 8080
-              protocol: TCP
-            - containerPort: 8000
-              hostPort: 8000
-              protocol: TCP
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 8080
+                  hostPort: 8080
+                  protocol: TCP
+                - containerPort: 8000
+                  hostPort: 8000
+                  protocol: TCP
       restartPolicy: Always
