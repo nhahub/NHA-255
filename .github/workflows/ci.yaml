@@ -1,0 +1,12 @@
+
+# fetch bastion public IP
+
+
+## SSH into bastion host
+
+
+
+### Add K8s nodes Private IPs to inventory file
+
+### Run bash script to setup inventory file & k8s cluster
+
