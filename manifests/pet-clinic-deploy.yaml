@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pet-clinic-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pet-clinic-web
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: pet-clinic-web
+    spec:
+      containers:
+        - name: pet-clinic-web
+          image: mohamedelsayed22/petclinic-depi:v1
+          env:
+            - name: MYSQL_URL
+              value: jdbc:mysql://mysql/petclinic
+            - name: SERVER_PORT
+              value: "8080"
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 8080
+                  hostPort: 8080
+                  protocol: TCP
+                - containerPort: 8000
+                  hostPort: 8000
+                  protocol: TCP
+      restartPolicy: Always

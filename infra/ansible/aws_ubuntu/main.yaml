@@ -1,0 +1,9 @@
+---
+- name: Setup Docker & K8s
+  import_playbook: setup-ec2.yaml
+
+- name: Initialize K8s Cluster
+  import_playbook: k8s-master-setup.yaml
+
+- name: Add worker nodes to the cluster
+  import_playbook: add-worker-node.yaml
