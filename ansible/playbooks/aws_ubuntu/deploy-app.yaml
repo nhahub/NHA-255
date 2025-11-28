@@ -1,0 +1,54 @@
+---
+- name: Deploy application manifests to Kubernetes cluster
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Copy k8s manifests to master node
+      copy:
+        src: ../../../k8s/
+        dest: /home/ubuntu/k8s-manifests/
+        owner: ubuntu
+        group: ubuntu
+        mode: '0644'
+
+    - name: Apply MySQL storage manifest
+      become_user: ubuntu
+      command: kubectl apply -f /home/ubuntu/k8s-manifests/mysql-storage.yaml
+
+    - name: Apply MySQL StatefulSet manifest
+      become_user: ubuntu
+      command: kubectl apply -f /home/ubuntu/k8s-manifests/mysql-ss.yaml
+
+    - name: Wait for MySQL pod to be ready
+      become_user: ubuntu
+      command: kubectl wait --for=condition=ready pod -l app=mysql --timeout=300s
+
+    - name: Apply Pet Clinic deployment manifest
+      become_user: ubuntu
+      command: kubectl apply -f /home/ubuntu/k8s-manifests/pet-clinic-deploy.yaml
+
+    - name: Apply Pet Clinic service manifest
+      become_user: ubuntu
+      command: kubectl apply -f /home/ubuntu/k8s-manifests/pet-clinic-s.yaml
+
+    - name: Wait for Pet Clinic deployment to be ready
+      become_user: ubuntu
+      command: kubectl wait --for=condition=available deployment/petclinic --timeout=300s
+
+    - name: Get all pods status
+      become_user: ubuntu
+      command: kubectl get pods -o wide
+      register: pods_output
+
+    - name: Display pods status
+      debug:
+        msg: "{{ pods_output.stdout_lines }}"
+
+    - name: Get service details
+      become_user: ubuntu
+      command: kubectl get svc
+      register: svc_output
+
+    - name: Display services
+      debug:
+        msg: "{{ svc_output.stdout_lines }}"

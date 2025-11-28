@@ -38,13 +38,13 @@ variable "ami_id" {
 variable "master_instance_type" {
   description = "Instance type for master node"
   type        = string
-  default     = "t3.medium"
+  default     = "c7i-flex.large"
 }
 
 variable "worker_instance_type" {
   description = "Instance type for worker nodes"
   type        = string
-  default     = "t3.medium"
+  default     = "c7i-flex.large"
 }
 
 variable "bastion_instance_type" {

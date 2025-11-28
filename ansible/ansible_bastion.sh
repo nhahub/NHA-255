@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # This script sets up an Ansible bastion host by installing necessary packages
-# and configuring SSH access.
+# and configuring SSH access for GitHub Actions pipeline.
 
 set -eo pipefail
 
 # Get the script directory and navigate to terraform
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TERRAFORM_DIR="$SCRIPT_DIR/../../terraform"
-ANSIBLE_DIR="$SCRIPT_DIR/../ansible/aws_ubuntu"
+TERRAFORM_DIR="$SCRIPT_DIR/../terraform"
+ANSIBLE_DIR="$SCRIPT_DIR/playbooks/"
 
 cd "$TERRAFORM_DIR" || exit 1
 
@@ -28,17 +28,19 @@ ansible_ssh_private_key_file=./k8s-key.pem"
 
 BASTION_IP=$(terraform output -raw bastion_public_ip)
 
-scp -i k8s-key.pem -r "$ANSIBLE_DIR" ubuntu@$BASTION_IP:~/
+echo "Copying Ansible files to bastion..."
+scp -i k8s-key.pem -o StrictHostKeyChecking=no -r "$ANSIBLE_DIR" ubuntu@$BASTION_IP:~/
 
 # Copy the private key
-scp -i k8s-key.pem k8s-key.pem ubuntu@$BASTION_IP:~/aws_ubuntu/
+scp -i k8s-key.pem -o StrictHostKeyChecking=no k8s-key.pem ubuntu@$BASTION_IP:~/playbooks/
 
 # Configure known_hosts on the bastion for ansible-managed nodes
-ssh -i k8s-key.pem ubuntu@$BASTION_IP << 'ENDSSH'
+echo "Setting up Ansible on bastion..."
+ssh -i k8s-key.pem -o StrictHostKeyChecking=no ubuntu@$BASTION_IP << 'ENDSSH'
 sudo apt-get update && sudo apt-get install -y python3-pip
 pip3 install ansible-core>=2.12
 pip3 install ansible
-cd ~/aws_ubuntu
+cd ~/playbooks
 # Extract IPs from inventory and add to known_hosts
 grep ansible_host inventory.ini | awk '{print $2}' | cut -d= -f2 | while read ip; do
   ssh-keyscan -H $ip >> ~/.ssh/known_hosts 2>/dev/null
@@ -53,7 +55,7 @@ echo "=======Ansible installed on bastion========"
 
 echo "running ansible playbook to build k8s cluster & deploy app from bastion ..."
 ssh -i k8s-key.pem ubuntu@$BASTION_IP << 'ENDSSHPLAYBOOK'
-cd ~/aws_ubuntu
+cd ~/playbooks
 ansible-playbook -i inventory.ini main.yaml
 ansible-playbook -i inventory.ini deploy-app.yaml
 ENDSSHPLAYBOOK
