@@ -50,7 +50,7 @@ variable "worker_instance_type" {
 variable "bastion_instance_type" {
   description = "Instance type for bastion host"
   type        = string
-  default     = "t3.micro"
+  default     = "t3.small"
 }
 
 variable "worker_count" {

@@ -10,8 +10,10 @@
 .gitignore
 *.pem
 .vscode/
-*.tfstate
+*.tfstate.*
 *.tfstate.backup
 .terraform/
 .terraform.lock.hcl
 src/target/
+**/terraform.tfstate*
+*.tfstate
