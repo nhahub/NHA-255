@@ -6,13 +6,22 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: "https://github.com/nhahub/NHA-255.git"
-    path: tools/jenkins
-    # targetRevision: main
-    targetRevision: CD/Argocd
+    chart: jenkins
+    repoURL: "https://charts.jenkins.io"
+    targetRevision: 5.8.110
+    helm:
+      releaseName: jenkins
+      values: |
+        controller:
+          serviceType: NodePort
+          servicePort: 8080
+          nodePort: 32000
+          jnlpPort: 50000
+          adminUser: admin
+          adminPassword: admin
   destination:
     server: "https://kubernetes.default.svc"
-    namespace: devops-tools
+    namespace: jenkins-ns
   syncPolicy:
     automated:
       selfHeal: true
