@@ -8,7 +8,8 @@ spec:
   source:
     repoURL: "https://github.com/nhahub/NHA-255.git"
     path: app-CD/k8s
-    targetRevision: main
+    # targetRevision: main
+    targetRevision: CD/Argocd
   destination:
     server: "https://kubernetes.default.svc"
     namespace: default
