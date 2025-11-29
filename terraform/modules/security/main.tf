@@ -61,6 +61,7 @@ resource "aws_security_group" "k8s_sg" {
   }
 
   tags = {
-    Name = "k8s-sg"
+    Name                                = "k8s-sg"
+    "kubernetes.io/cluster/k8s-cluster" = "owned"
   }
 }
