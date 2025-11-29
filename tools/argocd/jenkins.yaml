@@ -17,8 +17,9 @@ spec:
           servicePort: 8080
           nodePort: 32000
           jnlpPort: 50000
-          adminUser: admin
-          adminPassword: admin
+          admin:
+            username: admin
+            password: admin
   destination:
     server: "https://kubernetes.default.svc"
     namespace: jenkins-ns
