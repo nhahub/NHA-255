@@ -3,21 +3,19 @@ FROM maven:3.9.6-eclipse-temurin-17 AS builder
 WORKDIR /app
 
 # Copy pom.xml first
-COPY spring-petclinic/pom.xml .
+COPY pom.xml .
 
 # Download dependencies
 RUN mvn dependency:go-offline -B
 
 # Copy source code
-COPY spring-petclinic/ ./
+COPY ./ ./
 
 # Build the jar
 RUN mvn package -DskipTests
 
 # Stage 2: Runtime with Eclipse Temurin JRE
 FROM eclipse-temurin:17-jre
-
-LABEL Author="Mohamed Elsayed" 
 
 WORKDIR /app
 
