@@ -83,6 +83,16 @@ pipeline {
             }
         }
 
+
+        // Trivy Vulnerability Scanner
+        // stage('Trivy Vulnerability Scanner') {
+        //     steps {
+        //         container('kaniko') {
+        //             sh "trivy image $DOCKER_IMAGE:$DOCKER_TAG"
+        //         }
+        //     }
+        // }
+
         stage('Send Email') {
             steps {
                 container('mailer') {
@@ -110,5 +120,64 @@ pipeline {
                 }
             }
         }
+
+
+
+        // update the image tag
+        // stage ('K8S Update Imgae tag'){
+        //     steps {
+        //         container('git') {
+        // /////////////////////// with credentials text  //////////////////////////
+        //             git branch: 'main', url: 'https://github.com/nhahub/NHA-255.git'
+        //             sh '''
+        //             cd NHA-255.git
+        //             git checkout -b feature-$BRANCH_NAME
+        //             sed -i "s#youssefmahdy/pet-clinic-amd64:v1#mohamedelsayed22/petclinic-depi:$DOCKER_TAG#" app-CD/k8s/pet-clinic-deploy.yaml
+        //             cat app-CD/k8s/pet-clinic-deploy.yaml
+
+        //             ###  Commit and push to Feature Branch  
+        //             git config --global user.email "${GITHUB_EMAIL}"
+        //             git config --global user.name "${GITHUB_USER}"
+        //             git remote set-url origin https://${Git_TOKEN}@github.com/nhahub/NHA-255.git
+        //             git add .
+        //             git commit -m "Update image tag"
+        //             git push origin feature-$BRANCH_NAME'
+        //             '''
+        //         }
+
+
+        // ################# make PR #####################
+        //   stage('Make PR') {
+        //     steps {
+        //         container('mailer') {
+        //             withCredentials([usernamePassword(credentialsId: 'github', usernameVariable: 'GITHUB_USER', passwordVariable: 'GITHUB_PASS')]) {
+        //                 sh """
+        //             apk add --no-cache curl ca-certificates
+        //             curl --url "https://api.github.com/repos/nhahub/NHA-255/pulls" \
+        //                  --ssl-reqd \
+        //                  --user "\$GITHUB_USER:\$GITHUB_PASS" \
+        //                  --data '{"title": "Update image tag", "body": "Update image tag", "head": "feature-$BRANCH_NAME", "base": "main"}' \
+        //                  --verbose   
+        //         """
+        //             }
+        //         }
+        //     }
+        // }
+
+
+
+
+
+        //     }
+        // }
+
+
+
+
+
+
+
+
+
     }
 }
