@@ -1,15 +1,255 @@
 ---
-- name: Deploy application manifests to Kubernetes cluster
+- name: Install AWS Cloud Controller Manager
   hosts: masters
   become: yes
+  tags: aws_ccm
   tasks:
-    # - name: Copy k8s manifests to master node
-    #   copy:
-    #     src: ../argocd/
-    #     dest: /home/ubuntu/argocd/
-    #     owner: ubuntu
-    #     group: ubuntu
-    #     mode: '0644'
+    - name: Get and label master node for CCM
+      become_user: ubuntu
+      shell: |
+        # Get the first node (which should be the master)
+        MASTER_NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')
+        echo "Labeling node: $MASTER_NODE"
+        kubectl label node $MASTER_NODE node-role.kubernetes.io/control-plane="" --overwrite
+        echo "Current labels:"
+        kubectl get node $MASTER_NODE --show-labels
+
+    - name: Create Cloud Controller Manager RBAC
+      become_user: ubuntu
+      shell: |
+        # Create complete RBAC manually to ensure service account is created
+        cat <<EOF | kubectl apply -f -
+        apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: cloud-controller-manager
+          namespace: kube-system
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: system:cloud-controller-manager
+        rules:
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - nodes
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - nodes/status
+          verbs:
+          - patch
+        - apiGroups:
+          - ""
+          resources:
+          - services
+          verbs:
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - services/status
+          verbs:
+          - list
+          - patch
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - serviceaccounts
+          verbs:
+          - create
+          - get
+        - apiGroups:
+          - ""
+          resources:
+          - serviceaccounts/token
+          verbs:
+          - create
+        - apiGroups:
+          - ""
+          resources:
+          - persistentvolumes
+          verbs:
+          - get
+          - list
+          - update
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - endpoints
+          verbs:
+          - create
+          - get
+          - list
+          - watch
+          - update
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - ""
+          resources:
+          - secrets
+          verbs:
+          - list
+          - get
+          - watch
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - create
+          - get
+          - list
+          - watch
+          - update
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: system:cloud-controller-manager
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: system:cloud-controller-manager
+        subjects:
+        - kind: ServiceAccount
+          name: cloud-controller-manager
+          namespace: kube-system
+        EOF
+        
+        # Wait for service account to be ready
+        sleep 5
+
+    - name: Install AWS Cloud Controller Manager
+      become_user: ubuntu
+      shell: |
+        # Create CCM DaemonSet
+        cat <<EOF | kubectl apply -f -
+        apiVersion: apps/v1
+        kind: DaemonSet
+        metadata:
+          name: aws-cloud-controller-manager
+          namespace: kube-system
+          labels:
+            k8s-app: aws-cloud-controller-manager
+        spec:
+          selector:
+            matchLabels:
+              k8s-app: aws-cloud-controller-manager
+          updateStrategy:
+            type: RollingUpdate
+          template:
+            metadata:
+              labels:
+                k8s-app: aws-cloud-controller-manager
+            spec:
+              tolerations:
+                - operator: Exists
+                  effect: NoSchedule
+                - operator: Exists
+                  effect: NoExecute
+              serviceAccountName: cloud-controller-manager
+              containers:
+                - name: aws-cloud-controller-manager
+                  image: registry.k8s.io/provider-aws/cloud-controller-manager:v1.28.1
+                  args:
+                    - --v=2
+                    - --cloud-provider=aws
+                    - --use-service-account-credentials=true
+                    - --configure-cloud-routes=false
+                    - --cluster-name=k8s-cluster
+                  resources:
+                    requests:
+                      cpu: 200m
+              hostNetwork: true
+        EOF
+        
+        # Remove cloud-provider taint from nodes
+        kubectl get nodes -o name | while read node; do
+          kubectl taint nodes \${node##*/} node.cloudprovider.kubernetes.io/uninitialized:NoSchedule- 2>/dev/null || true
+        done
+
+    - name: Verify DaemonSet and debug pod scheduling
+      become_user: ubuntu
+      shell: |
+        echo "=== DaemonSet Status ==="
+        kubectl get daemonset -n kube-system aws-cloud-controller-manager -o wide
+        
+        echo -e "\n=== Node Information ==="
+        kubectl get nodes -o wide
+        kubectl get nodes --show-labels
+        
+        echo -e "\n=== Pods Status ==="
+        kubectl get pods -n kube-system -l k8s-app=aws-cloud-controller-manager -o wide
+        
+        echo -e "\n=== DaemonSet Events ==="
+        kubectl describe daemonset -n kube-system aws-cloud-controller-manager
+        
+        echo -e "\n=== Check if pods are pending ==="
+        kubectl get pods -n kube-system -l k8s-app=aws-cloud-controller-manager -o json | jq '.items[] | {name: .metadata.name, phase: .status.phase, conditions: .status.conditions}'
+      register: ccm_debug
+      
+    - name: Display debug output
+      debug:
+        var: ccm_debug.stdout_lines
+
+    - name: Wait for Cloud Controller Manager pods to exist
+      become_user: ubuntu
+      shell: |
+        for i in {1..30}; do
+          POD_COUNT=$(kubectl get pods -n kube-system -l k8s-app=aws-cloud-controller-manager --no-headers 2>/dev/null | wc -l)
+          if [ "$POD_COUNT" -gt 0 ]; then
+            echo "Found $POD_COUNT CCM pod(s)"
+            exit 0
+          fi
+          echo "Waiting for CCM pods to be created... (attempt $i/30)"
+          sleep 10
+        done
+        echo "No CCM pods were created after 5 minutes"
+        exit 1
+      register: pod_wait
+      ignore_errors: yes
+
+    - name: Check pod logs if they exist
+      become_user: ubuntu
+      shell: |
+        kubectl logs -n kube-system -l k8s-app=aws-cloud-controller-manager --tail=50
+      when: pod_wait.rc == 0
+      ignore_errors: yes
+
+- name: Deploy application manifests to Kubernetes cluster
+  hosts: masters
+  tags: deploy_app
+  become: yes
+  tasks:
+    - name: Install AWS EBS CSI Driver
+      become_user: ubuntu
+      command: |
+        kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.28"
 
     - name: Apply ArgoCD manifest
       become_user: ubuntu
@@ -17,12 +257,20 @@
         kubectl create namespace argocd
         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
         kubectl apply -f https://raw.githubusercontent.com/nhahub/NHA-255/k8s-deployment/v1/tools/argocd/argocd.yaml
+
+    - name: Setup Sealed Secrets
+      become_user: ubuntu
+      command: |
         wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.20.5/kubeseal-0.20.5-linux-amd64.tar.gz
         tar -xvf kubeseal-0.20.5-linux-amd64.tar.gz
         sudo mv kubeseal /usr/local/bin
         sudo chmod +x /usr/local/bin/kubeseal
         rm kubeseal-0.20.5-linux-amd64.tar.gz
         kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.20.5/controller.yaml
+
+    - name: Create and apply sealed secrets for MySQL DataBase
+      become_user: ubuntu
+      command: |
         kubectl create secret generic mysql-root-password --from-literal=password=admin123 --dry-run=client -o yaml > mysql-root-secret.yaml
         kubectl create secret generic mysql-user-password --from-literal=password=admin --dry-run=client -o yaml > mysql-user-secret.yaml
         kubeseal --fetch-cert > publickey.pem
@@ -30,45 +278,8 @@
         kubeseal --format=yaml --cert=publickey.pem < mysql-user-secret.yaml > sealed-mysql-user-secret.yaml
         kubectl apply -f sealed-mysql-root-secret.yaml
         kubectl apply -f sealed-mysql-user-secret.yaml
-        rm -f mysql-root-secret.yaml mysql-user-secret.yaml 
-    # - name: Apply MySQL storage manifest
-    #   become_user: ubuntu
-    #   command: kubectl apply -f /home/ubuntu/k8s-manifests/mysql-storage.yaml
 
-    # - name: Apply MySQL StatefulSet manifest
-    #   become_user: ubuntu
-    #   command: kubectl apply -f /home/ubuntu/k8s-manifests/mysql-ss.yaml
-
-    # - name: Wait for MySQL pod to be ready
-    #   become_user: ubuntu
-    #   command: kubectl wait --for=condition=ready pod -l app=mysql --timeout=300s
-
-    # - name: Apply Pet Clinic deployment manifest
-    #   become_user: ubuntu
-    #   command: kubectl apply -f /home/ubuntu/k8s-manifests/pet-clinic-deploy.yaml
-
-    # - name: Apply Pet Clinic service manifest
-    #   become_user: ubuntu
-    #   command: kubectl apply -f /home/ubuntu/k8s-manifests/pet-clinic-s.yaml
-
-    # - name: Wait for Pet Clinic deployment to be ready
-    #   become_user: ubuntu
-    #   command: kubectl wait --for=condition=available deployment/petclinic --timeout=300s
-
-    # - name: Get all pods status
-    #   become_user: ubuntu
-    #   command: kubectl get pods -o wide
-    #   register: pods_output
-
-    # - name: Display pods status
-    #   debug:
-    #     msg: "{{ pods_output.stdout_lines }}"
-
-    # - name: Get service details
-    #   become_user: ubuntu
-    #   command: kubectl get svc
-    #   register: svc_output
-
-    # - name: Display services
-    #   debug:
-    #     msg: "{{ svc_output.stdout_lines }}"
+    - name: Clean up temporary secret files
+      become_user: ubuntu
+      command: |
+        rm -f mysql-root-secret.yaml mysql-user-secret.yaml publickey.pem
