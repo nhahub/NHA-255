@@ -24,8 +24,9 @@ resource "aws_instance" "k8s_master" {
               EOF
 
   tags = {
-    Name = "k8s-master"
-    Role = "master"
+    Name                                = "k8s-master"
+    Role                                = "master"
+    "kubernetes.io/cluster/k8s-cluster" = "owned"
   }
 
   root_block_device {
@@ -56,8 +57,9 @@ resource "aws_instance" "k8s_workers" {
               EOF
 
   tags = {
-    Name = "k8s-worker-${count.index + 1}"
-    Role = "worker"
+    Name                                = "k8s-worker-${count.index + 1}"
+    Role                                = "worker"
+    "kubernetes.io/cluster/k8s-cluster" = "owned"
   }
 
   root_block_device {

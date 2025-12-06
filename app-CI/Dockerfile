@@ -21,6 +21,10 @@ WORKDIR /app
 
 COPY --from=builder /app/target/*.jar app.jar
 
+RUN useradd -m -a -s /bin/bash appuser
+
+USER appuser
+
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
