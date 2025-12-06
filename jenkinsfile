@@ -80,7 +80,7 @@ pipeline {
                             }
                         }
 EOF
-                        # 2. تنفيذ Kaniko
+
                         /kaniko/executor \\
                             --context `pwd`/app-CI \\
                             --dockerfile `pwd`/app-CI/Dockerfile \\
