@@ -26,6 +26,14 @@ pipeline {
                                 - 99999
                             tty: true
 
+                        -   name: trivy
+                            image: aquasec/trivy:latest
+                            command:
+                                - sleep
+                            args:
+                                - 99d
+                            tty: true
+
                         -   name: mailer
                             image: alpine:latest
                             command:
@@ -40,8 +48,7 @@ pipeline {
         GIT_REPO = 'https://github.com/nhahub/NHA-255.git'
         GIT_BRANCH = 'main'
         DOCKER_IMAGE = 'mohamedelsayed22/petclinic-depi'
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        K8S_NAMESPACE = 'default'
+        DOCKER_TAG = "v1.${env.BUILD_NUMBER}"
     }
     stages {
         stage('Checkout') {
@@ -51,7 +58,9 @@ pipeline {
                 }
             }
         }
-        stage('Build docker image and push to docker hub') {
+
+        
+    stage('Build docker image and push to docker hub') {
             steps {
                 withCredentials([usernamePassword(
                             credentialsId: 'dockerhub',
@@ -60,22 +69,25 @@ pipeline {
                         )]) {
                             container('kaniko') {
                         sh """
+                        AUTH_STRING=\$(echo -n \$DOCKER_USER:\$DOCKER_PASS | base64 | tr -d '\n')
+                        
                         cat > /kaniko/.docker/config.json <<EOF
                         {
                             "auths": {
                                         "https://index.docker.io/v1/": {
-                                            "auth": "\$(echo -n $DOCKER_USER:$DOCKER_PASS | base64 | tr '\n')"
+                                            "auth": "\$AUTH_STRING"
                                         }
                             }
                         }
-                        EOF
-                        /kaniko/executor \
-                            --context `pwd`/java-app \
-                            --dockerfile `pwd`/java-app/Dockerfile \
-                            --destination $DOCKER_IMAGE:$DOCKER_TAG \
-                            --destination $DOCKER_IMAGE:latest \
-                            --cache=true \
-                            --verbosity=info \
+EOF
+                        # 2. تنفيذ Kaniko
+                        /kaniko/executor \\
+                            --context `pwd`/app-CI \\
+                            --dockerfile `pwd`/app-CI/Dockerfile \\
+                            --destination $DOCKER_IMAGE:$DOCKER_TAG \\
+                            --destination $DOCKER_IMAGE:latest \\
+                            --cache=true \\
+                            --verbosity=info \\
                             --snapshot-mode=redo
                     """
                             }
@@ -83,43 +95,111 @@ pipeline {
             }
         }
 
-
-        // Trivy Vulnerability Scanner
-        // stage('Trivy Vulnerability Scanner') {
-        //     steps {
-        //         container('kaniko') {
-        //             sh "trivy image $DOCKER_IMAGE:$DOCKER_TAG"
-        //         }
-        //     }
-        // }
-
-        stage('Send Email') {
-            steps {
-                container('mailer') {
-                    withCredentials([usernamePassword(credentialsId: 'gmail', usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+    stage('Trivy Vulnerability Scanner') {
+                steps {
+                    container('trivy') { 
                         sh """
-                    apk add --no-cache curl ca-certificates
-
-                    FROM="mohamedelsayedhussein22@gmail.com"
-                    TO="mohamedelsayedhussein22@gmail.com"
-                    SUBJECT="Jenkins Build #\\$BUILD_NUMBER - PetClinic Docker Image"
-                    BODY="Jenkins Pipeline Execution Summary\\\\n\\\\nJob Name: \\$JOB_NAME\\\\nBuild Number: \\$BUILD_NUMBER\\\\nBuild URL: \\$BUILD_URL\\\\nStatus: SUCCESS\\\\n\\\\nDocker Images Built:\\\\n- $DOCKER_IMAGE:\\$BUILD_NUMBER\\\\n- $DOCKER_IMAGE:latest\\\\n\\\\nGit Repository: $GIT_REPO\\\\nGit Branch: $GIT_BRANCH\\\\n\\\\nNamespace: $K8S_NAMESPACE"
-
-                    echo "Sending email..."
-                    echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n\$BODY" > /tmp/email.txt
-
-                    curl --url "smtps://smtp.gmail.com:465" \
-                         --ssl-reqd \
-                         --mail-from "\$FROM" \
-                         --mail-rcpt "\$TO" \
-                         --upload-file /tmp/email.txt \
-                         --user "\$GMAIL_USER:\$GMAIL_PASS" \
-                         --verbose
-                """
+                        echo "Starting Trivy scan on image: $DOCKER_IMAGE:$DOCKER_TAG"
+                        trivy image \\
+                            --ignore-unfixed \\
+                            --severity CRITICAL \\
+                            --format template --template '@default' \\
+                            $DOCKER_IMAGE:$DOCKER_TAG
+                        """
                     }
                 }
             }
+
+
+
+ 
+
+    }
+    post {
+        success {
+            container('mailer') {
+                withCredentials([usernamePassword(credentialsId: 'gmail', usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+                   sh """
+                    apk update && apk add --no-cache curl ca-certificates
+                    
+                    FROM="awsconsolet@gmail.com"
+                    TO="awsconsolet@gmail.com"
+                    SUBJECT="SUCCESS: Jenkins Build #\${BUILD_NUMBER} - PetClinic Docker Image"
+                    
+                    echo "Sending email..."
+                    echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n" > /tmp/email.txt
+                    
+                    cat >> /tmp/email.txt <<END_BODY
+                    Jenkins Pipeline Execution Summary
+                    
+                    Job Name: \${JOB_NAME}
+                    Build Number: \${BUILD_NUMBER}
+                    Build URL: \${BUILD_URL}
+                    Status: SUCCESS 
+                    
+                    Docker Images Built:
+                    - ${DOCKER_IMAGE}:\${BUILD_NUMBER}
+                    - ${DOCKER_IMAGE}:latest
+                    
+                    Git Repository: ${GIT_REPO}
+                    Git Branch: ${GIT_BRANCH}
+                    END_BODY
+
+                    curl --url "smtps://smtp.gmail.com:465" \\
+                         --ssl-reqd \\
+                         --mail-from "\$FROM" \\
+                         --mail-rcpt "\$TO" \\
+                         --upload-file /tmp/email.txt \\
+                         --user "\$GMAIL_USER:\$GMAIL_PASS" \\
+                         --verbose
+                    """
+                }
+            }
         }
+        failure {
+            container('mailer') {
+                withCredentials([usernamePassword(credentialsId: 'gmail', usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
+                   sh """
+                    apk update && apk add --no-cache curl ca-certificates
+                    
+                    FROM="awsconsolet@gmail.com"
+                    TO="awsconsolet@gmail.com"
+                    SUBJECT="FAILURE: Jenkins Build #\${BUILD_NUMBER} - PetClinic Docker Image"
+                    
+                    echo "Sending email..."
+                    echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n" > /tmp/email.txt
+                    
+                    cat >> /tmp/email.txt <<END_BODY
+                    Jenkins Pipeline Execution Summary
+                    
+                    Job Name: \${JOB_NAME}
+                    Build Number: \${BUILD_NUMBER}
+                    Build URL: \${BUILD_URL}
+                    Status: FAILED 
+                    
+                    Docker Images Built:
+                    - ${DOCKER_IMAGE}:\${BUILD_NUMBER}
+                    - ${DOCKER_IMAGE}:latest
+                    
+                    Git Repository: ${GIT_REPO}
+                    Git Branch: ${GIT_BRANCH}
+                    END_BODY
+
+                    curl --url "smtps://smtp.gmail.com:465" \\
+                         --ssl-reqd \\
+                         --mail-from "\$FROM" \\
+                         --mail-rcpt "\$TO" \\
+                         --upload-file /tmp/email.txt \\
+                         --user "\$GMAIL_USER:\$GMAIL_PASS" \\
+                         --verbose
+                    """
+                }
+            }
+        }
+    }
+}
+
+
 
 
 
@@ -174,10 +254,3 @@ pipeline {
 
 
 
-
-
-
-
-
-    }
-}
