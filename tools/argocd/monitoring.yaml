@@ -13,9 +13,12 @@ spec:
       releaseName: prom-grafana
       values: |
         grafana:
-          service:
-            type: NodePort
-            nodePort: 32042
+              adminUser: admin
+              adminPassword: admin123
+              service:
+                type: LoadBalancer
+                nodePort: 32042
+
   destination:
     server: "https://kubernetes.default.svc"
     namespace: monitoring
