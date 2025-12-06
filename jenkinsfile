@@ -80,7 +80,7 @@ pipeline {
                             }
                         }
 EOF
-
+ 
                         /kaniko/executor \\
                             --context `pwd`/app-CI \\
                             --dockerfile `pwd`/app-CI/Dockerfile \\
@@ -101,8 +101,10 @@ EOF
                         sh """
                         echo "Starting Trivy scan on image: $DOCKER_IMAGE:$DOCKER_TAG"
                         trivy image \\
+                            --timeout 20m \\
                             --ignore-unfixed \\
                             --severity CRITICAL \\
+                            --skip-dirs /proc,/sys,/dev,/var/cache,/tmp \\
                             --format template --template '@default' \\
                             $DOCKER_IMAGE:$DOCKER_TAG
                         """
@@ -124,18 +126,21 @@ EOF
                     
                     FROM="awsconsolet@gmail.com"
                     TO="awsconsolet@gmail.com"
+ 
                     SUBJECT="SUCCESS: Jenkins Build #\${BUILD_NUMBER} - PetClinic Docker Image"
+                    BUILD_STATUS="SUCCESS"
                     
                     echo "Sending email..."
                     echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n" > /tmp/email.txt
                     
-                    cat >> /tmp/email.txt <<END_BODY
+
+                    cat >> /tmp/email.txt <<-END_BODY 
                     Jenkins Pipeline Execution Summary
                     
                     Job Name: \${JOB_NAME}
                     Build Number: \${BUILD_NUMBER}
                     Build URL: \${BUILD_URL}
-                    Status: SUCCESS 
+                    Status: \${BUILD_STATUS} 
                     
                     Docker Images Built:
                     - ${DOCKER_IMAGE}:\${BUILD_NUMBER}
@@ -143,7 +148,7 @@ EOF
                     
                     Git Repository: ${GIT_REPO}
                     Git Branch: ${GIT_BRANCH}
-                    END_BODY
+END_BODY
 
                     curl --url "smtps://smtp.gmail.com:465" \\
                          --ssl-reqd \\
@@ -156,6 +161,8 @@ EOF
                 }
             }
         }
+        
+
         failure {
             container('mailer') {
                 withCredentials([usernamePassword(credentialsId: 'gmail', usernameVariable: 'GMAIL_USER', passwordVariable: 'GMAIL_PASS')]) {
@@ -164,18 +171,21 @@ EOF
                     
                     FROM="awsconsolet@gmail.com"
                     TO="awsconsolet@gmail.com"
+
                     SUBJECT="FAILURE: Jenkins Build #\${BUILD_NUMBER} - PetClinic Docker Image"
+                    BUILD_STATUS="FAILED"
                     
                     echo "Sending email..."
                     echo -e "From: \$FROM\\nTo: \$TO\\nSubject: \$SUBJECT\\n\\n" > /tmp/email.txt
                     
-                    cat >> /tmp/email.txt <<END_BODY
+
+                    cat >> /tmp/email.txt <<-END_BODY 
                     Jenkins Pipeline Execution Summary
                     
                     Job Name: \${JOB_NAME}
                     Build Number: \${BUILD_NUMBER}
                     Build URL: \${BUILD_URL}
-                    Status: FAILED 
+                    Status: \${BUILD_STATUS} 
                     
                     Docker Images Built:
                     - ${DOCKER_IMAGE}:\${BUILD_NUMBER}
@@ -183,7 +193,7 @@ EOF
                     
                     Git Repository: ${GIT_REPO}
                     Git Branch: ${GIT_BRANCH}
-                    END_BODY
+END_BODY
 
                     curl --url "smtps://smtp.gmail.com:465" \\
                          --ssl-reqd \\
