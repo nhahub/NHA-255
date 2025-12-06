@@ -18,4 +18,5 @@ src/target/
 **/terraform.tfstate*
 *.tfstate
 
+
 app-CI/target/*

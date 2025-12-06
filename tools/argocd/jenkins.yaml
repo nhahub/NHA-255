@@ -1,19 +1,20 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: petclinic
+  name: jenkins
   namespace: argocd
 spec:
   project: default
   source:
-    repoURL: "https://github.com/nhahub/NHA-255.git"
-    path: app-CD/local
-    # targetRevision: main
-    targetRevision: CD/Argocd
+    repoURL: https://github.com/nhahub/NHA-255.git
+    path: tools/jenkins
+    targetRevision: main
   destination:
     server: "https://kubernetes.default.svc"
-    namespace: default
+    namespace: devops-tools
   syncPolicy:
     automated:
       selfHeal: true
       prune: true
+    syncOptions:
+      - CreateNamespace=true

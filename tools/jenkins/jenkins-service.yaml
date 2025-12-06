@@ -10,7 +10,7 @@ metadata:
 spec:
   selector:
     app: jenkins-server
-  type: NodePort
+  type: LoadBalancer 
   ports:
     - name: jenkins
       port: 8080
