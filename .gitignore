@@ -18,8 +18,5 @@ src/target/
 **/terraform.tfstate*
 *.tfstate
 
-<<<<<<< Updated upstream
+
 app-CI/target/*
-=======
-target
->>>>>>> Stashed changes

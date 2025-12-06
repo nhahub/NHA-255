@@ -21,6 +21,7 @@ resource "aws_iam_policy" "ebs_csi_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # IAM policy for EBS CSI Driver
       {
         Effect = "Allow"
         Action = [
@@ -44,10 +45,55 @@ resource "aws_iam_policy" "ebs_csi_policy" {
 
         ]
         Resource = "*"
+      } 
+    ]
+  })
+}
+
+resource "aws_iam_policy" "k8s_CCM_policy" {
+  name = "k8s-CCM-Policy"
+  description = "Policy to allow Kubernetes Cloud Controller Manager to manage AWS resources"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeRegions",
+          "ec2:DescribeRouteTables",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:CreateSecurityGroup",
+          "ec2:DeleteSecurityGroup",
+          "ec2:ModifyInstanceAttribute",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupIngress"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:ConfigureHealthCheck",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:ApplySecurityGroupsToLoadBalancer",
+          "elasticloadbalancing:AttachLoadBalancerToSubnets",
+          "elasticloadbalancing:DetachLoadBalancerFromSubnets",
+          "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+          "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes"
+        ]
+        Resource = "*"
       }
     ]
   })
 }
+
 
 # SSM Policy Attachment
 resource "aws_iam_role_policy_attachment" "ssm_policy" {
@@ -58,6 +104,11 @@ resource "aws_iam_role_policy_attachment" "ssm_policy" {
 resource "aws_iam_role_policy_attachment" "ebs_csi_policy_attachment" {
   role       = aws_iam_role.k8s_role.name
   policy_arn = aws_iam_policy.ebs_csi_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "k8s_CCM_policy_attachment" {
+  role       = aws_iam_role.k8s_role.name
+  policy_arn = aws_iam_policy.k8s_CCM_policy.arn
 }
 
 # IAM Instance Profile
