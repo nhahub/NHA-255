@@ -17,7 +17,7 @@ spec:
     name: jenkins-pv-claim
     namespace: devops-tools
   capacity:
-    storage: 10Gi
+    storage: 4Gi
   accessModes:
     - ReadWriteOnce
   local:

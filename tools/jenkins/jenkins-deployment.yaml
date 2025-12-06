@@ -20,12 +20,10 @@ spec:
             # filesystem security on the shared host
             fsGroup: 1000
             runAsUser: 1000
-            ### runAsGroup: 1000
       serviceAccountName: jenkins-admin
       containers:
         - name: jenkins
           image: jenkins/jenkins:jdk21
-          # OPTIONAL: check for new floating-tag LTS releases whenever the pod is restarted:
           imagePullPolicy: Always
           resources:
             limits:
