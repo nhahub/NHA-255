@@ -105,7 +105,7 @@ EOF
                             --ignore-unfixed \\
                             --severity CRITICAL \\
                             --skip-dirs /proc,/sys,/dev,/var/cache,/tmp \\
-                            --format template --template '@default' \\
+                            --format table \\
                             $DOCKER_IMAGE:$DOCKER_TAG
                         """
                     }
