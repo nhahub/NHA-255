@@ -21,7 +21,7 @@ WORKDIR /app
 
 COPY --from=builder /app/target/*.jar app.jar
 
-RUN useradd -m -a -s /bin/bash appuser
+RUN useradd -m -s /bin/bash appuser
 
 USER appuser
 

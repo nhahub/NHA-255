@@ -4,6 +4,11 @@
   become: yes
   tags: aws_ccm
   tasks:
+    - name: Install jq
+      apt:
+        name: jq
+        state: present
+        update_cache: yes
     - name: Get and label master node for CCM
       become_user: ubuntu
       shell: |
@@ -248,19 +253,19 @@
   tasks:
     - name: Install AWS EBS CSI Driver
       become_user: ubuntu
-      command: |
+      shell: |
         kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/?ref=release-1.28"
 
     - name: Apply ArgoCD manifest
       become_user: ubuntu
-      command: |
-        kubectl create namespace argocd
+      shell: |
+        kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
         kubectl apply -f https://raw.githubusercontent.com/nhahub/NHA-255/k8s-deployment/v1/tools/argocd/argocd.yaml
 
     - name: Setup Sealed Secrets
       become_user: ubuntu
-      command: |
+      shell: |
         wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.20.5/kubeseal-0.20.5-linux-amd64.tar.gz
         tar -xvf kubeseal-0.20.5-linux-amd64.tar.gz
         sudo mv kubeseal /usr/local/bin
@@ -270,10 +275,27 @@
 
     - name: Create and apply sealed secrets for MySQL DataBase
       become_user: ubuntu
-      command: |
+      shell: |
         kubectl create secret generic mysql-root-password --from-literal=password=admin123 --dry-run=client -o yaml > mysql-root-secret.yaml
         kubectl create secret generic mysql-user-password --from-literal=password=admin --dry-run=client -o yaml > mysql-user-secret.yaml
-        kubeseal --fetch-cert > publickey.pem
+        
+        # Retry fetching certificate
+        for i in {1..15}; do
+          if kubeseal --fetch-cert > publickey.pem 2>/dev/null; then
+            if [ -s publickey.pem ]; then
+              echo "Certificate fetched successfully"
+              break
+            fi
+          fi
+          echo "Waiting for sealed-secrets-controller service endpoints... ($i/15)"
+          sleep 10
+        done
+        
+        if [ ! -s publickey.pem ]; then
+          echo "Failed to fetch public key"
+          exit 1
+        fi
+
         kubeseal --format=yaml --cert=publickey.pem < mysql-root-secret.yaml > sealed-mysql-root-secret.yaml
         kubeseal --format=yaml --cert=publickey.pem < mysql-user-secret.yaml > sealed-mysql-user-secret.yaml
         kubectl apply -f sealed-mysql-root-secret.yaml
@@ -281,5 +303,5 @@
 
     - name: Clean up temporary secret files
       become_user: ubuntu
-      command: |
+      shell: |
         rm -f mysql-root-secret.yaml mysql-user-secret.yaml publickey.pem
