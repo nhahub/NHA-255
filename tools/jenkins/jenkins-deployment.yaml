@@ -16,11 +16,14 @@ spec:
         app: jenkins-server
     spec:
       securityContext:
-            # Note: fsGroup may be customized for a bit of better
-            # filesystem security on the shared host
-            fsGroup: 1000
-            runAsUser: 1000
+        # Note: fsGroup may be customized for a bit of better
+        # filesystem security on the shared host
+        fsGroup: 1000
+        runAsUser: 1000
       serviceAccountName: jenkins-admin
+      env:
+        - name: JAVA_OPTS
+          value: "-Djenkins.model.Jenkins.crumbIssuerProxyCompatibility=true"
       containers:
         - name: jenkins
           image: jenkins/jenkins:jdk21
@@ -59,4 +62,4 @@ spec:
       volumes:
         - name: jenkins-data
           persistentVolumeClaim:
-              claimName: jenkins-pv-claim
+            claimName: jenkins-pv-claim
